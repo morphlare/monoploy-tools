@@ -5,6 +5,8 @@ import { randomUUID } from "node:crypto";
 import { resolve } from "node:path";
 import { mkdirSync } from "node:fs";
 import { io, type Socket } from "socket.io-client";
+import { Store } from "../server/store";
+import { assetsFor } from "../shared/rules";
 import type { Action, Reply, Room, Session } from "../shared/types";
 
 test(
@@ -80,6 +82,7 @@ test(
         mode: "create",
         name: "李四",
         diceCount: 2,
+        gameMode: { type: "survival", durationMinutes: 60, targetCash: 30000 },
       });
       assert.ok(created.ok);
       host = created.session!;
@@ -185,6 +188,34 @@ test(
         false,
       );
       assert.equal((await request(b3, "resume", guest)).ok, true);
+      // Bankruptcy must settle both clients' assets and remain undoable.
+      await act(a3, { type: "restart" });
+      await act(a3, { type: "buy", propertyId: "71-49" });
+      await act(a3, { type: "build", propertyId: "71-49", count: 4 });
+      await act(a3, { type: "hotel", propertyId: "71-49" });
+      await act(b3, { type: "buy", propertyId: "71-66" });
+      await act(a3, { type: "balance", playerId: guest.playerId, amount: 100 });
+      const debtorTotal = assetsFor(room, guest.playerId).total;
+      const creditorBefore = room.players[0].balance;
+      await act(a3, { type: "rent", propertyId: "71-49", playerId: guest.playerId });
+      assert.equal(room.players[0].balance, creditorBefore + debtorTotal);
+      assert.equal(room.players[1].balance, 0);
+      assert.equal(room.players[1].bankrupt, true);
+      assert.equal(room.properties["71-66"].ownerId, null);
+      assert.equal(room.status, "finished");
+      assert.deepEqual(room.winnerIds, [host.playerId]);
+      const bankruptResume = await request(b3, "resume", guest);
+      assert.equal(bankruptResume.room!.players[1].bankrupt, true);
+      assert.equal(bankruptResume.room!.status, "finished");
+      await act(a3, { type: "undo" });
+      assert.equal(room.status, "playing");
+      assert.equal(room.players[1].bankrupt, false);
+      assert.equal(room.properties["71-66"].ownerId, guest.playerId);
+      await act(a3, { type: "demolish", propertyId: "71-49", count: 3 });
+      assert.equal(room.properties["71-49"].houses, 2);
+      assert.equal(room.properties["71-49"].hotel, false);
+      await act(a3, { type: "restart" });
+      assert.equal(room.players[1].balance, 20000);
       await act(a3, { type: "kick", playerId: guest.playerId });
       assert.equal((await request(b3, "resume", guest)).ok, false);
       assert.equal(room.players.length, 1);
@@ -198,6 +229,7 @@ test(
       const single = await request(c, "enter", { mode: "create", name: "单骰房主" });
       assert.ok(single.ok); room = single.room!;
       assert.equal(room.diceCount, 1);
+      assert.deepEqual(room.mode, { type: "timed", durationMinutes: 60, targetCash: 30000 });
       await act(c, { type: "start" });
       await act(c, { type: "roll", values: [6] });
       assert.equal(room.dice[0].total, 6);
@@ -205,6 +237,31 @@ test(
       const mismatch = await request(c, "action", { id: randomUUID(), revision: room.revision, action: { type: "roll", values: [2, 4] } });
       assert.equal(mismatch.ok, false);
       assert.equal((await request(c, "resume", single.session)).room!.diceCount, 1);
+
+      // Expiry is driven by the server even when clients send no action.
+      const inspect = new Store(database);
+      try {
+        inspect.atomic(() => {
+          const expired = inspect.get(room.code)!;
+          expired.deadline = Date.now() - 1;
+          inspect.save(expired);
+        });
+        const timedResult = await new Promise<Room>((resolve, reject) => {
+          const timer = setTimeout(() => { c.off("room", onRoom); reject(new Error("deadline not broadcast")); }, 2500);
+          const onRoom = (next: Room) => {
+            if (next.status === "finished") { clearTimeout(timer); c.off("room", onRoom); resolve(next); }
+          };
+          c.on("room", onRoom);
+        });
+        room = timedResult;
+        assert.deepEqual(room.winnerIds, [single.session!.playerId]);
+        assert.match(room.finishReason!, /时间到/);
+        assert.equal(room.events[0].type, "finish");
+        assert.equal(inspect.get(room.code)!.status, "finished");
+      } finally { inspect.db.close(); }
+      await act(c, { type: "restart" });
+      assert.equal(room.status, "playing");
+      assert.ok(room.deadline! > Date.now());
 
       // Two simultaneous candidates contend for the eighth seat atomically.
       const capacity = await request(c, "enter", { mode: "create", name: "八人房主" });
@@ -220,6 +277,21 @@ test(
       room = lastSeats.find(r => r.ok)!.room!;
       await act(c, { type: "start" });
       assert.equal(room.players.length, 8);
+      const member = await connect();
+      const memberSession = lastSeats.find(r => r.ok)!.session!;
+      assert.equal((await request(member, "resume", memberSession)).ok, true);
+      const forbiddenEnd = await request(member, "action", { id: randomUUID(), revision: room.revision, action: { type: "end" } });
+      assert.equal(forbiddenEnd.ok, false);
+      const ended = Promise.all([c, member].map(s => new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error("end not broadcast")), 2000);
+        s.once("ended", () => { clearTimeout(timer); resolve(); });
+      })));
+      assert.ok((await request(c, "action", { id: randomUUID(), revision: room.revision, action: { type: "end" } })).ok);
+      await ended;
+      assert.equal((await request(member, "resume", memberSession)).ok, false);
+      assert.equal((await request(c, "resume", capacity.session)).ok, false);
+      assert.equal((await request(member, "enter", { mode: "join", code: room.code, name: "结束后加入" })).ok, false);
+      assert.equal((await request(c, "enter", { mode: "create", name: "重新创建" })).ok, true);
     } finally {
       clients.forEach((s) => s.disconnect());
       await stop();

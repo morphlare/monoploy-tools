@@ -1,6 +1,6 @@
 import { randomInt, randomUUID } from "node:crypto";
-import { definitions, money, propertyById, rentFor } from "../shared/rules";
-import { MAX_PLAYERS, type DiceCount, type DiceValues } from "../shared/types";
+import { assetsFor, redemptionPrice, definitions, money, propertyById, rentFor } from "../shared/rules";
+import { DEFAULT_GAME_MODE, MAX_PLAYERS, type GameMode, type DiceCount, type DiceValues } from "../shared/types";
 import type {
   Action,
   GameEvent,
@@ -14,6 +14,9 @@ export interface UndoState {
   dice: Room["dice"];
   eventId: string;
   actorId: string;
+  status: Room["status"];
+  winnerIds?: string[];
+  finishReason?: string;
 }
 export interface StoredRoom extends Room {
   undo?: UndoState;
@@ -29,12 +32,13 @@ export function blankProperties(): Room["properties"] {
     ]),
   );
 }
-export function makeRoom(code: string, host: Player, diceCount: DiceCount = 1): StoredRoom {
+export function makeRoom(code: string, host: Player, diceCount: DiceCount = 1, mode: GameMode = DEFAULT_GAME_MODE): StoredRoom {
   check(diceCount === 1 || diceCount === 2, "骰子数量只能为 1 或 2");
   return {
     code,
     hostId: host.id,
     status: "lobby",
+    mode: { ...mode },
     initialMoney: 15000,
     diceCount,
     players: [host],
@@ -44,6 +48,33 @@ export function makeRoom(code: string, host: Player, diceCount: DiceCount = 1): 
     revision: 0,
     updatedAt: Date.now(),
   };
+}
+export function settleOutcome(room: StoredRoom, now = Date.now()): boolean {
+  if (room.status !== "playing") return false;
+  const alive = room.players.filter(p => !p.bankrupt);
+  let winners: Player[] | undefined;
+  let reason = "";
+  if (room.mode.type === "timed") {
+    if (room.deadline !== undefined && now >= room.deadline) {
+      const highest = Math.max(...alive.map(p => p.balance));
+      winners = alive.filter(p => p.balance === highest);
+      reason = "时间到，按现金排名结算";
+    } else {
+      const reached = alive.filter(p => p.balance >= room.mode.targetCash);
+      if (reached.length) { winners = reached; reason = "现金达到目标"; }
+    }
+  } else if (alive.length <= 1 && (room.startedPlayerCount ?? room.players.length) >= 2) {
+    winners = alive;
+    reason = "只剩一名未破产玩家";
+  }
+  if (!winners) return false;
+  room.status = "finished";
+  room.winnerIds = winners.map(p => p.id);
+  room.finishReason = reason;
+  return true;
+}
+export function outcomeText(room: Room) {
+  return `${room.finishReason} · ${room.players.filter(p => room.winnerIds?.includes(p.id)).map(p => p.name).join("、") || "无人"}获胜`;
 }
 export function log(
   room: StoredRoom,
@@ -75,9 +106,11 @@ export function applyAction(
   check(actor, "你已不在这个房间");
   const host = actorId === room.hostId;
   const { type } = action;
-  const admin = ["settings", "start", "restart", "balance", "kick"];
+  const admin = ["settings", "start", "restart", "balance", "kick", "end"];
   if (admin.includes(type)) check(host, "只有房主可以执行此操作");
-  if (!["settings", "start", "restart", "kick"].includes(type))
+  check(room.status !== "closed", "游戏已结束，房间已关闭");
+  check(!actor.bankrupt || admin.includes(type) || type === "undo", "你已破产，当前只能观战");
+  if (!["settings", "start", "restart", "kick", "end", "undo"].includes(type))
     check(room.status === "playing", "请等待房主开局");
   const player = (id?: string) => {
     const p = room.players.find((p) => p.id === id);
@@ -95,12 +128,29 @@ export function applyAction(
     return v;
   };
   const txs: Transaction[] = [];
-  const pay = (from: string, to: string, value: number, reason: string) => {
+  let bankruptcyText = "";
+  const pay = (from: string, to: string, value: number, reason: string, debt = false) => {
     amount(value);
     check(from !== to, "收付款方不能相同");
+    if (to !== "bank") check(!player(to).bankrupt, "收款玩家已破产");
     if (from !== "bank") {
       const p = player(from);
-      check(p.balance >= value, `${p.name}余额不足`);
+      check(!p.bankrupt, "付款玩家已破产");
+      const total = assetsFor(room, p.id).total;
+      if (debt && total < value) {
+        if (to !== "bank") check(player(to).balance + total <= 1_000_000_000, "余额超过上限");
+        const liquidation = total - p.balance;
+        if (liquidation) txs.push({ id: randomUUID(), from: "bank", to: p.id, amount: liquidation, reason: "破产资产清算" });
+        if (total) txs.push({ id: randomUUID(), from: p.id, to, amount: total, reason: "破产偿付" });
+        p.balance = 0;
+        p.bankrupt = true;
+        if (to !== "bank") player(to).balance += total;
+        for (const s of Object.values(room.properties))
+          if (s.ownerId === p.id) Object.assign(s, { ownerId: null, houses: 0, hotel: false, mortgaged: false });
+        bankruptcyText = `；${p.name}破产，总额 ${money(total)} 归${to === "bank" ? "银行" : player(to).name}，全部地产与建筑归银行`;
+        return;
+      }
+      check(p.balance >= value, `${p.name}余额不足，请先卖房或抵押地产（总额 ${money(total)}）`);
       p.balance -= value;
     }
     if (to !== "bank") {
@@ -117,6 +167,9 @@ export function applyAction(
     dice: structuredClone(room.dice),
     eventId: "",
     actorId,
+    status: room.status,
+    winnerIds: room.winnerIds,
+    finishReason: room.finishReason,
   };
   let text = "";
   if (type === "undo") {
@@ -126,6 +179,9 @@ export function applyAction(
     room.players = undo.players;
     room.properties = undo.properties;
     room.dice = undo.dice;
+    room.status = undo.status;
+    room.winnerIds = undo.winnerIds;
+    room.finishReason = undo.finishReason;
     const old = room.events.find((e) => e.id === undo.eventId);
     if (old) old.undone = true;
     room.undo = undefined;
@@ -136,7 +192,10 @@ export function applyAction(
       `${actor.name}撤销了「${old?.text ?? "最近操作"}」`,
     );
   }
-  if (type === "settings") {
+  if (type === "end") {
+    room.status = "closed";
+    text = `${actor.name}结束游戏，所有玩家返回创建房间页面`;
+  } else if (type === "settings") {
     check(room.status === "lobby", "开局后不能修改初始资金");
     room.initialMoney = amount(action.amount);
     text = `初始资金设为 ${money(room.initialMoney)}`;
@@ -144,10 +203,16 @@ export function applyAction(
     check(room.players.length <= MAX_PLAYERS, `房间最多 ${MAX_PLAYERS} 位玩家，请先移除多余玩家`);
     if (type === "start") check(room.status === "lobby", "游戏已经开始");
     room.status = "playing";
+    room.startedAt = Date.now();
+    room.startedPlayerCount = room.players.length;
+    room.deadline = room.mode.type === "timed" ? room.startedAt + room.mode.durationMinutes * 60_000 : undefined;
+    room.winnerIds = undefined;
+    room.finishReason = undefined;
     room.properties = blankProperties();
     room.dice = [];
     room.players.forEach((p) => {
       p.balance = room.initialMoney;
+      p.bankrupt = false;
     });
     text = `${actor.name}${type === "restart" ? "重新开始游戏" : "开启中国之旅"} · 每人 ${money(room.initialMoney)}`;
   } else if (type === "kick") {
@@ -166,6 +231,7 @@ export function applyAction(
   } else if (type === "balance") {
     const target = player(action.playerId);
     const next = amount(action.amount, true);
+    check(!target.bankrupt, "破产玩家请通过重新开始恢复");
     text = `房主纠错：${target.name}余额 ${money(target.balance)} → ${money(next)}`;
     target.balance = next;
   } else if (type === "transfer") {
@@ -174,7 +240,7 @@ export function applyAction(
       action.from === actorId || action.to === actorId || host,
       "你只能操作与自己相关的转账",
     );
-    pay(action.from, action.to, amount(action.amount), "转账");
+    pay(action.from, action.to, amount(action.amount), "转账", true);
     text = `${label(action.from)} → ${label(action.to)} ${money(action.amount!)}`;
   } else if (type === "roll") {
     const values: DiceValues = action.values ?? (room.diceCount === 1
@@ -214,11 +280,13 @@ export function applyAction(
           (type === "rent" && action.playerId === actorId),
         "只有产权人或房主可以操作",
       );
-      if (type === "give") {
-        const target = player(action.playerId);
-        check(target.id !== owner.id, "请选择另一位玩家");
-        state.ownerId = target.id;
-        text = `${owner.name}将${def.name}转让给${target.name}`;
+      if (type === "sell") {
+        check(!state.mortgaged, "抵押中的地产不可出售");
+        check(!state.hotel && state.houses === 0, "请先出售全部建筑");
+        const refund = Math.floor(def.purchasePrice / 2);
+        pay("bank", owner.id, refund, `出售${def.name}`);
+        state.ownerId = null;
+        text = `${owner.name}将${def.name}按半价出售给银行 · +${money(refund)}`;
       } else if (type === "mortgage") {
         check(!state.mortgaged, "地产已经抵押");
         pay("bank", owner.id, def.mortgagePrice, `抵押${def.name}`);
@@ -226,9 +294,9 @@ export function applyAction(
         text = `${owner.name}抵押${def.name} · +${money(def.mortgagePrice)}`;
       } else if (type === "redeem") {
         check(state.mortgaged, "地产未抵押");
-        pay(owner.id, "bank", def.mortgagePrice, `赎回${def.name}`);
+        pay(owner.id, "bank", redemptionPrice(def), `赎回${def.name}（含10%利息）`);
         state.mortgaged = false;
-        text = `${owner.name}赎回${def.name} · ${money(def.mortgagePrice)}`;
+        text = `${owner.name}赎回${def.name}（含10%利息） · ${money(redemptionPrice(def))}`;
       } else if (type === "rent") {
         check(!state.mortgaged, "抵押中的地产不能收租");
         if (def.type === "utility")
@@ -238,16 +306,18 @@ export function applyAction(
           );
         const payer = player(action.playerId);
         const rent = rentFor(room, def.id);
-        pay(payer.id, owner.id, rent, `${def.name}租金`);
+        pay(payer.id, owner.id, rent, `${def.name}租金`, true);
         text = `${payer.name} → ${owner.name} ${money(rent)} · ${def.name}租金`;
       } else {
         check(def.type === "property" && def.buildingCost, "此地产不能建房");
-        check(!state.mortgaged, "请先赎回地产");
+        if (type !== "demolish") check(!state.mortgaged, "请先赎回地产");
+        const count = action.count ?? 1;
+        check(Number.isInteger(count) && count >= 1 && count <= 5, "栋数必须为 1～5 的整数");
         if (type === "build") {
-          check(!state.hotel && state.houses < 4, "已达上限，请选择升级旅馆");
-          pay(owner.id, "bank", def.buildingCost.house, `在${def.name}建房`);
-          state.houses++;
-          text = `${owner.name}在${def.name}建造第 ${state.houses} 栋房屋`;
+          check(!state.hotel && state.houses + count <= 4, "最多 4 栋房屋，请调整数量或升级旅馆");
+          pay(owner.id, "bank", def.buildingCost.house * count, `在${def.name}建房`);
+          state.houses += count;
+          text = `${owner.name}在${def.name}建造 ${count} 栋房屋（现有 ${state.houses} 栋）`;
         } else if (type === "hotel") {
           check(!state.hotel && state.houses === 4, "需先建满 4 栋房屋");
           pay(owner.id, "bank", def.buildingCost.hotel, `升级${def.name}旅馆`);
@@ -256,21 +326,21 @@ export function applyAction(
           text = `${owner.name}将${def.name}升级为旅馆`;
         } else if (type === "demolish") {
           check(state.hotel || state.houses > 0, "这里还没有建筑");
-          const refund = Math.floor(
-            (state.hotel ? def.buildingCost.hotel : def.buildingCost.house) / 2,
-          );
+          const available = state.hotel ? 5 : state.houses;
+          check(count <= available, "售卖栋数超过现有建筑");
+          const refund = Math.floor(def.buildingCost.house / 2) * count;
           pay("bank", owner.id, refund, `拆除${def.name}建筑`);
-          if (state.hotel) {
-            state.hotel = false;
-            state.houses = 4;
-          } else state.houses--;
-          text = `${owner.name}拆除${def.name}的${before.properties[def.id].hotel ? "旅馆，恢复 4 栋房屋" : "一栋房屋"} · +${money(refund)}`;
+          state.hotel = false;
+          state.houses = available - count;
+          text = `${owner.name}出售${def.name}的 ${count} 栋房屋（剩余 ${state.houses} 栋） · +${money(refund)}`;
         } else throw new Error("不支持的操作");
       }
     }
   }
+  text += bankruptcyText;
+  if (settleOutcome(room)) text += `；${outcomeText(room)}`;
   const event = log(room, actorId, type, text, txs);
-  room.undo = ["settings", "start", "restart", "kick"].includes(type)
+  room.undo = ["settings", "start", "restart", "kick", "end"].includes(type)
     ? undefined
     : { ...before, eventId: event.id };
   return event;

@@ -2071,3 +2071,16 @@ body:has(dialog[open]) {
     scroll-behavior: auto !important;
   }
 }
+
+/* Shared assets across tabs and dialogs. */
+.shared-balance { margin-bottom: 18px; padding: 20px 24px; }
+.asset-figures { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
+.asset-figures div { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.asset-figures strong { font-size: clamp(21px, 5vw, 36px); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.asset-note { font-size: 12px; margin: 14px 0 0; opacity: .85; line-height: 1.6; }
+.game-mode-summary { margin-bottom: 20px; font-size: 14px; line-height: 1.6; }
+.mode-fields { border: 1px solid #dddcd2; border-radius: 14px; padding: 14px; margin: 16px 0; }
+.mode-fields legend { padding: 0 6px; font-weight: 600; }
+.result-panel { margin-bottom: 20px; border: 2px solid #839367; }
+.modal-inner .shared-balance { padding: 16px; }
+.modal-inner .asset-figures strong { font-size: clamp(18px, 5vw, 28px); }

@@ -25,6 +25,7 @@ export interface Player {
   balance: number;
   color: number;
   online?: boolean;
+  bankrupt?: boolean;
 }
 export interface PropertyState {
   id: string;
@@ -51,6 +52,12 @@ export interface GameEvent {
 }
 export const MAX_PLAYERS = 8;
 export type DiceCount = 1 | 2;
+export interface GameMode {
+  type: "timed" | "survival";
+  durationMinutes: number;
+  targetCash: number;
+}
+export const DEFAULT_GAME_MODE: GameMode = { type: "timed", durationMinutes: 60, targetCash: 30000 };
 export type DiceValues = [number] | [number, number];
 export interface DiceRoll {
   id: string;
@@ -63,7 +70,13 @@ export interface DiceRoll {
 export interface Room {
   code: string;
   hostId: string;
-  status: "lobby" | "playing";
+  status: "lobby" | "playing" | "finished" | "closed";
+  mode: GameMode;
+  startedAt?: number;
+  startedPlayerCount?: number;
+  deadline?: number;
+  winnerIds?: string[];
+  finishReason?: string;
   initialMoney: number;
   diceCount: DiceCount;
   players: Player[];
@@ -81,7 +94,8 @@ export type ActionType =
   | "restart"
   | "transfer"
   | "buy"
-  | "give"
+  | "sell"
+  | "end"
   | "mortgage"
   | "redeem"
   | "build"
@@ -101,6 +115,7 @@ export interface Action {
   amount?: number;
   values?: DiceValues;
   diceId?: string;
+  count?: number;
 }
 export interface Session {
   code: string;

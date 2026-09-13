@@ -1,14 +1,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { applyAction, makeRoom } from "../server/engine";
+import { applyAction, makeRoom, settleOutcome } from "../server/engine";
 import { Store } from "../server/store";
-import { definitions, rentFor } from "../shared/rules";
-import type { Action } from "../shared/types";
+import { assetsFor, definitions, rentFor } from "../shared/rules";
+import type { Action, Player } from "../shared/types";
 function setup(diceCount: 1 | 2 = 2) {
-  const host = { id: randomUUID(), name: "李四", balance: 0, color: 0 },
-    guest = { id: randomUUID(), name: "张三", balance: 0, color: 1 };
-  const room = makeRoom("ABC234", host, diceCount);
+  const host: Player = { id: randomUUID(), name: "李四", balance: 0, color: 0 },
+    guest: Player = { id: randomUUID(), name: "张三", balance: 0, color: 1 };
+  const room = makeRoom("ABC234", host, diceCount, { type: "survival", durationMinutes: 60, targetCash: 30000 });
   room.players.push(guest);
   const act = (a: Action, who = host.id) => applyAction(room, who, a);
   act({ type: "settings", amount: 20000 });
@@ -42,8 +42,10 @@ test("dice settings persist and legacy rooms keep two dice", () => {
   assert.equal(store.get(room.code)!.diceCount, 1);
   const legacy: Partial<typeof room> = structuredClone(room);
   delete legacy.diceCount;
+  delete legacy.mode;
   store.db.prepare("UPDATE rooms SET state=? WHERE code=?").run(JSON.stringify(legacy), room.code);
   assert.equal(store.get(room.code)!.diceCount, 2);
+  assert.equal(store.get(room.code)!.mode.type, "survival");
   store.db.close();
 });
 test("provided JSON contains all 41 unique cards in order", () => {
@@ -105,7 +107,7 @@ test("hotel upgrade, demolition and redemption are reversible", () => {
   assert.equal(host.balance, 8000);
   act({ type: "mortgage", propertyId: "71-49" });
   act({ type: "redeem", propertyId: "71-49" });
-  assert.equal(host.balance, 8000);
+  assert.equal(host.balance, 7850);
 });
 test("authorization, insufficient funds and invalid amounts cannot commit state", () => {
   const { room, host, guest, act } = setup();
@@ -119,7 +121,7 @@ test("authorization, insufficient funds and invalid amounts cannot commit state"
         type: "transfer",
         from: host.id,
         to: guest.id,
-        amount: 20001,
+        amount: -1,
       });
       store.save(current, e);
     }),
@@ -139,13 +141,125 @@ test("authorization, insufficient funds and invalid amounts cannot commit state"
 test("restart clears game state and prevents undo across membership changes", () => {
   const { room, guest, act } = setup();
   act({ type: "buy", propertyId: "71-49" });
-  act({ type: "give", propertyId: "71-49", playerId: guest.id });
+  act({ type: "sell", propertyId: "71-49" });
+  act({ type: "buy", propertyId: "71-49" }, guest.id);
   assert.equal(room.properties["71-49"].ownerId, guest.id);
   act({ type: "kick", playerId: guest.id });
   assert.equal(room.properties["71-49"].ownerId, null);
+  assert.equal(room.status, "finished");
+  assert.deepEqual(room.winnerIds, [room.hostId]);
   assert.equal(room.undo, undefined);
   act({ type: "restart" });
   assert.equal(room.players[0].balance, 20000);
   assert.equal(room.dice.length, 0);
   assert.equal(room.undo, undefined);
+});
+
+test("batch building, hotel liquidation, land sale and mortgage valuation", () => {
+  const {room, host, act} = setup();
+  const id = "71-49";
+  act({type:"buy", propertyId:id});
+  act({type:"build", propertyId:id, count:4});
+  assert.equal(room.properties[id].houses, 4);
+  assert.equal(host.balance, 9000);
+  assert.equal(assetsFor(room, host.id).total, 14500);
+  assert.throws(() => act({type:"build", propertyId:id, count:1}));
+  assert.throws(() => act({type:"demolish", propertyId:id, count:5}));
+  act({type:"hotel", propertyId:id});
+  assert.equal(assetsFor(room, host.id).buildings, 5000);
+  act({type:"demolish", propertyId:id, count:3});
+  assert.equal(room.properties[id].houses, 2);
+  assert.equal(room.properties[id].hotel, false);
+  assert.equal(host.balance, 10000);
+  act({type:"mortgage", propertyId:id});
+  assert.equal(assetsFor(room, host.id).land, 0);
+  assert.equal(assetsFor(room, host.id).total, 13500);
+  assert.throws(() => act({type:"sell", propertyId:id}), /抵押/);
+  act({type:"demolish", propertyId:id, count:2});
+  act({type:"redeem", propertyId:id});
+  assert.equal(host.balance, 11850);
+  act({type:"sell", propertyId:id});
+  assert.equal(host.balance, 13350);
+  assert.equal(room.properties[id].ownerId, null);
+  act({type:"undo"});
+  assert.equal(room.properties[id].ownerId, host.id);
+  assert.equal(room.players[0].balance, 11850);
+});
+
+test("rent bankruptcy transfers liquidation total, returns all property and undo restores winner state", () => {
+  const {room, host, guest, act} = setup();
+  act({type:"buy", propertyId:"71-49"});
+  act({type:"build", propertyId:"71-49", count:4});
+  act({type:"hotel", propertyId:"71-49"});
+  act({type:"buy", propertyId:"71-31"}, guest.id);
+  act({type:"build", propertyId:"71-31", count:2}, guest.id);
+  act({type:"buy", propertyId:"71-66"}, guest.id);
+  act({type:"mortgage", propertyId:"71-66"}, guest.id);
+  act({type:"balance", playerId:guest.id, amount:100});
+  const total = assetsFor(room, guest.id).total;
+  const ownerCash = host.balance;
+  assert.ok(total < rentFor(room, "71-49"));
+  const previous = structuredClone(room);
+  const event = act({type:"rent", propertyId:"71-49", playerId:guest.id});
+  assert.equal(guest.balance, 0);
+  assert.equal(guest.bankrupt, true);
+  assert.equal(host.balance, ownerCash + total);
+  assert.ok(Object.values(room.properties).every(s => s.ownerId !== guest.id));
+  assert.equal(room.properties["71-66"].mortgaged, false);
+  assert.equal(room.properties["71-31"].houses, 0);
+  assert.equal(room.status, "finished");
+  assert.deepEqual(room.winnerIds, [host.id]);
+  assert.match(event.text, /破产/);
+  assert.throws(() => act({type:"roll"}, guest.id));
+  act({type:"undo"});
+  assert.equal(room.status, "playing");
+  assert.equal(room.winnerIds, undefined);
+  assert.deepEqual(room.properties, previous.properties);
+  assert.deepEqual(room.players, previous.players);
+});
+
+test("insufficient cash with enough assets rejects atomically; exact rent total is not bankruptcy", () => {
+  const {room,host,guest,act} = setup();
+  act({type:"buy",propertyId:"71-49"});
+  act({type:"build",propertyId:"71-49"});
+  act({type:"buy",propertyId:"71-66"},guest.id);
+  act({type:"balance",playerId:guest.id,amount:300});
+  const store=new Store(":memory:");
+  store.save(room);
+  assert.throws(() => store.atomic(() => {
+    const current=store.get(room.code)!;
+    store.save(current, applyAction(current,host.id,{type:"rent",propertyId:"71-49",playerId:guest.id}));
+  }),/先卖房或抵押/);
+  assert.equal(store.get(room.code)!.players[1].balance,300);
+  assert.equal(guest.bankrupt,false);
+  act({type:"mortgage",propertyId:"71-66"},guest.id);
+  act({type:"balance",playerId:guest.id,amount:1300});
+  act({type:"rent",propertyId:"71-49",playerId:guest.id});
+  assert.equal(guest.balance,0);
+  assert.equal(guest.bankrupt,false);
+  store.db.close();
+});
+
+test("timed target, ties at timeout, restart and end", () => {
+  const {room,host,guest,act}=setup();
+  room.mode={type:"timed",durationMinutes:60,targetCash:30000};
+  act({type:"restart"});
+  assert.equal(room.deadline! - room.startedAt!,3600000);
+  act({type:"transfer",from:"bank",to:guest.id,amount:10000},guest.id);
+  assert.equal(room.status,"finished");
+  assert.deepEqual(room.winnerIds,[guest.id]);
+  act({type:"undo"},guest.id);
+  assert.equal(room.status,"playing");
+  act({type:"restart"});
+  assert.equal(settleOutcome(room,room.deadline!),true);
+  assert.deepEqual(room.winnerIds,[host.id,guest.id]);
+  assert.equal(settleOutcome(room,room.deadline!),false);
+  act({type:"restart"});
+  assert.equal(room.status,"playing");
+  assert.ok(room.players.every(p=>!p.bankrupt));
+  assert.throws(()=>act({type:"end"},guest.id),/房主/);
+  act({type:"end"});
+  assert.equal(room.status,"closed");
+  assert.equal(room.undo,undefined);
+  assert.throws(()=>act({type:"restart"}),/关闭/);
 });

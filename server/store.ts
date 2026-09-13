@@ -24,6 +24,9 @@ export class Store {
     const room: StoredRoom = JSON.parse(row.state);
     // Existing rooms were created with two dice before this setting existed.
     room.diceCount ??= 2;
+    room.mode ??= { type: "survival", durationMinutes: 60, targetCash: 30000 };
+    room.startedPlayerCount ??= room.players.length;
+    if (room.undo) room.undo.status ??= "playing";
     return room;
   }
   save(room: StoredRoom, event?: GameEvent) {

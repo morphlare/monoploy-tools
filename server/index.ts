@@ -5,9 +5,9 @@ import { resolve } from "node:path";
 import { Server } from "socket.io";
 import { z } from "zod";
 import { Store } from "./store";
-import { applyAction, check, log, makeRoom, type StoredRoom } from "./engine";
+import { applyAction, check, log, makeRoom, settleOutcome, outcomeText, type StoredRoom } from "./engine";
 import type { Reply, Room, Session } from "../shared/types";
-import { MAX_PLAYERS } from "../shared/types";
+import { DEFAULT_GAME_MODE, MAX_PLAYERS } from "../shared/types";
 
 const app = express(),
   http = createServer(app);
@@ -31,7 +31,8 @@ const actionSchema = z.object({
     "restart",
     "transfer",
     "buy",
-    "give",
+    "sell",
+    "end",
     "mortgage",
     "redeem",
     "build",
@@ -53,6 +54,7 @@ const actionSchema = z.object({
     z.tuple([z.number().int().min(1).max(6), z.number().int().min(1).max(6)]),
   ]).optional(),
   diceId: z.string().uuid().optional(),
+  count: z.number().int().min(1).max(5).optional(),
 });
 const online = (code: string, id: string) =>
   [...io.sockets.sockets.values()].some(
@@ -84,12 +86,24 @@ function authenticate(session: Session) {
   );
   const room = store.get(session.code);
   check(
-    room && room.players.some((p) => p.id === session.playerId),
+    room && room.status !== "closed" && room.players.some((p) => p.id === session.playerId),
     "房间不存在",
   );
   return room;
 }
 const limits = new Map<string, { count: number; at: number }>();
+function expireRoom(code: string) {
+  let changed = false;
+  store.atomic(() => {
+    const room = store.get(code);
+    if (room?.status === "playing" && room.deadline !== undefined && Date.now() >= room.deadline && settleOutcome(room)) {
+      room.undo = undefined;
+      store.save(room, log(room, room.hostId, "finish", outcomeText(room)));
+      changed = true;
+    }
+  });
+  if (changed) broadcast(code);
+}
 io.on("connection", (socket) => {
   socket.onAny(() => {
     /* Mutations are individually validated below. */
@@ -134,6 +148,11 @@ io.on("connection", (socket) => {
         mode: z.enum(["create", "join"]),
         name: nickname,
         diceCount: z.union([z.literal(1), z.literal(2)]).default(1),
+        gameMode: z.object({
+          type: z.enum(["timed", "survival"]),
+          durationMinutes: z.number().int().min(1).max(1440),
+          targetCash: z.number().int().min(1).max(1_000_000_000),
+        }).default(DEFAULT_GAME_MODE),
         code: z
           .string()
           .regex(/^[A-Z2-9]{6}$/)
@@ -154,7 +173,7 @@ io.on("connection", (socket) => {
       }
       const player = { id, name: input.name, balance: 0, color: 0 };
       let room: StoredRoom;
-      if (input.mode === "create") room = makeRoom(code, player, input.diceCount);
+      if (input.mode === "create") room = makeRoom(code, player, input.diceCount, input.gameMode);
       else {
         const found = store.get(code);
         check(found, "没有找到这个房间，请检查房间号");
@@ -189,6 +208,8 @@ io.on("connection", (socket) => {
   });
   handle("resume", (data) => {
     const session = sessionSchema.parse(data);
+    authenticate(session);
+    expireRoom(session.code);
     const room = authenticate(session);
     room.updatedAt = Date.now();
     store.save(room);
@@ -206,6 +227,8 @@ io.on("connection", (socket) => {
       .parse(data);
     const session = socket.data.session as Session | undefined;
     check(session, "请先加入房间");
+    authenticate(session);
+    expireRoom(session.code);
     store.atomic(() => {
       const room = authenticate(session);
       const key = `${session.playerId}:${input.id}`;
@@ -224,7 +247,19 @@ io.on("connection", (socket) => {
         store.db
           .prepare("DELETE FROM sessions WHERE code=? AND player=?")
           .run(room.code, input.action.playerId!);
+      if (input.action.type === "end")
+        store.db.prepare("DELETE FROM sessions WHERE code=?").run(room.code);
     });
+    if (input.action.type === "end") {
+      for (const s of io.sockets.sockets.values()) {
+        if (s.data.session?.code === session.code) {
+          s.emit("ended");
+          s.leave(session.code);
+          delete s.data.session;
+        }
+      }
+      return { ok: true };
+    }
     if (input.action.type === "kick")
       for (const s of io.sockets.sockets.values()) {
         if (
@@ -251,6 +286,10 @@ io.on("connection", (socket) => {
     }
   });
 });
+setInterval(() => {
+  for (const { code } of store.db.prepare("SELECT code FROM rooms WHERE json_extract(state, '$.status')='playing' AND json_extract(state, '$.deadline') <= ?").all(Date.now()) as { code: string }[])
+    expireRoom(code);
+}, 1000).unref();
 setInterval(() => {
   const cutoff =
     Date.now() - Number(process.env.ROOM_TTL_HOURS || 24) * 3600_000;

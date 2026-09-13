@@ -5,6 +5,18 @@ export const propertyById = Object.fromEntries(
   definitions.map((p) => [p.id, p]),
 );
 export const money = (n: number) => `¥${n.toLocaleString("zh-CN")}`;
+export const redemptionPrice = (d: PropertyDefinition) => d.mortgagePrice + Math.ceil(d.mortgagePrice / 10);
+export function assetsFor(room: Room, playerId: string) {
+  const cash = room.players.find(p => p.id === playerId)?.balance ?? 0;
+  let land = 0, buildings = 0;
+  for (const d of definitions) {
+    const s = room.properties[d.id];
+    if (s?.ownerId !== playerId) continue;
+    if (!s.mortgaged) land += d.mortgagePrice;
+    buildings += (s.hotel ? 5 : s.houses) * Math.floor((d.buildingCost?.house ?? 0) / 2);
+  }
+  return { cash, land, buildings, total: cash + land + buildings };
+}
 export const groupColors = [
   "#c99877",
   "#d29a45",

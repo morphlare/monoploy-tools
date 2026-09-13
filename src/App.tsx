@@ -7,7 +7,7 @@ import {
   type ReactNode,
 } from "react";
 import { socket } from "./socket";
-import { MAX_PLAYERS, type DiceCount } from "../shared/types";
+import { DEFAULT_GAME_MODE, MAX_PLAYERS, type GameMode, type DiceCount } from "../shared/types";
 import {
   ArrowDownLeft,
   ArrowUpRight,
@@ -47,6 +47,8 @@ import type {
   Session,
 } from "../shared/types";
 import {
+  assetsFor,
+  redemptionPrice,
   definitions,
   groupColors,
   groupName,
@@ -57,6 +59,7 @@ import {
 
 const sessionKey = "china-journey-session";
 const NoticeContext = createContext("");
+const BalanceContext = createContext<ReactNode>(null);
 const avatars = [
   "#e2edc4",
   "#f4d9bc",
@@ -157,6 +160,7 @@ function Modal({
             {notice}
           </div>
         )}
+        {useContext(BalanceContext)}
         {children}
       </div>
     </dialog>
@@ -215,6 +219,10 @@ export default function App() {
     [query, setQuery] = useState(""),
     [filter, setFilter] = useState("all"),
     [sortGroups, setSortGroups] = useState(false);
+  const [gameMode, setGameMode] = useState<GameMode>({ ...DEFAULT_GAME_MODE });
+  const [buildingCount, setBuildingCount] = useState(1);
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(timer); }, []);
   const [diceCount, setDiceCount] = useState<DiceCount>(1);
   const [transferMode, setTransferMode] = useState<"pay" | "receive">("pay"),
     [target, setTarget] = useState("bank"),
@@ -233,6 +241,8 @@ export default function App() {
       ? definitions.filter((d) => room.properties[d.id].ownerId === me.id)
       : [];
   const active = connected && ready && !pending;
+  const canPlay = active && room?.status === "playing" && !me?.bankrupt;
+  useEffect(() => { window.scrollTo({ top: 0, left: 0, behavior: "instant" }); }, [tab, room?.code]);
   function updateRoom(next: Room) {
     const before = previous.current?.players.find(
       (p) => p.id === sessionRef.current?.playerId,
@@ -258,7 +268,9 @@ export default function App() {
     setSession(null);
     setRoom(null);
     previous.current = null;
-    setReady(false);
+    setReady(socket.connected);
+    setEntry("create");
+    setTab("home");
     setModal(null);
     setSelected(null);
   }
@@ -295,7 +307,9 @@ export default function App() {
       clearSession();
       setNotice("房主已将你移出房间");
     };
+    const onEnded = () => { clearSession(); setNotice("房主已结束游戏，可以创建新的房间"); };
     socket
+      .on("ended", onEnded)
       .on("connect", onConnect)
       .on("disconnect", onDisconnect)
       .on("room", updateRoom)
@@ -303,6 +317,7 @@ export default function App() {
     socket.connect();
     return () => {
       socket
+        .off("ended", onEnded)
         .off("connect", onConnect)
         .off("disconnect", onDisconnect)
         .off("room", updateRoom)
@@ -344,7 +359,7 @@ export default function App() {
     const result = await request("enter", {
       mode: entry,
       name,
-      ...(entry === "join" ? { code: code.toUpperCase() } : { diceCount }),
+      ...(entry === "join" ? { code: code.toUpperCase() } : { diceCount, gameMode }),
     });
     if (result.ok) {
       sessionRef.current = result.session!;
@@ -366,7 +381,8 @@ export default function App() {
       action,
     });
     if (result.ok) {
-      updateRoom(result.room!);
+      if (action.type === "end") clearSession();
+      else if (result.room) updateRoom(result.room);
     } else {
       setNotice(result.error!);
       const resumed = await request("resume", sessionRef.current);
@@ -377,6 +393,7 @@ export default function App() {
   }
   const openProperty = (id: string) => {
     setSelected(id);
+    setBuildingCount(1);
     setPropertyOp("");
     setPropertyTarget("");
   };
@@ -392,6 +409,16 @@ export default function App() {
       setSelected(null);
     }
   };
+  const balanceCard = room && me ? (
+    <section className="balance-card shared-balance" aria-label="我的资产">
+      <div className="balance-label"><span><Wallet size={17} /> {me.name}{me.bankrupt ? " · 已破产，观战中" : ""}</span><span>已同步</span></div>
+      <div className="asset-figures">
+        <div><span>现金</span><strong>{money(me.balance)}</strong></div>
+        <div><span>总额</span><strong>{money(assetsFor(room, me.id).total)}</strong></div>
+      </div>
+      <p className="asset-note">未抵押地产 {money(assetsFor(room, me.id).land)} · 建筑变现 {money(assetsFor(room, me.id).buildings)}</p>
+    </section>
+  ) : null;
   function propertyCard(d: PropertyDefinition, compact = false) {
     const state = room!.properties[d.id],
       owner = room!.players.find((p) => p.id === state.ownerId);
@@ -466,7 +493,7 @@ export default function App() {
         </div>
         <button
           className="primary wide"
-          disabled={!active || rolling}
+          disabled={!canPlay || rolling}
           onClick={() => void act({ type: "roll" })}
         >
           <Dices size={19} />
@@ -487,6 +514,7 @@ export default function App() {
   ];
   return (
     <NoticeContext.Provider value={notice}>
+    <BalanceContext.Provider value={balanceCard}>
       <div className="app">
         <header className="topbar">
           <div className="brand">
@@ -615,6 +643,18 @@ export default function App() {
                     </select>
                   </label>
                 )}
+                {entry === "create" && (
+                  <fieldset className="mode-fields"><legend>胜负模式</legend>
+                    <label>游戏模式<select value={gameMode.type} onChange={e => setGameMode({ ...gameMode, type: e.target.value as GameMode["type"] })}>
+                      <option value="timed">限时现金赛</option><option value="survival">最后一人获胜</option>
+                    </select></label>
+                    {gameMode.type === "timed" && <>
+                      <label>游戏时长（分钟）<input type="number" min="1" max="1440" required value={gameMode.durationMinutes || ""} onChange={e => setGameMode({ ...gameMode, durationMinutes: Number(e.target.value) })} /></label>
+                      <label>目标现金（元）<input type="number" min="1" max="1000000000" required value={gameMode.targetCash || ""} onChange={e => setGameMode({ ...gameMode, targetCash: Number(e.target.value) })} /></label>
+                      <p className="tiny">先达到目标者获胜；时间到按现金排名，同额并列。</p>
+                    </>}
+                  </fieldset>
+                )}
                 {entry === "join" && (
                   <label>
                     房间号
@@ -660,6 +700,10 @@ export default function App() {
           </main>
         ) : (
           <main className="workspace">
+            {balanceCard}
+            <div className="game-mode-summary">{room.mode.type === "timed" ? `限时现金赛 · 目标 ${money(room.mode.targetCash)} · ${room.status === "lobby" ? room.mode.durationMinutes + " 分钟" : "剩余 " + Math.max(0, Math.ceil(((room.deadline ?? now) - now) / 60000)) + " 分钟"}` : "生存赛 · 最后一名未破产玩家获胜"}</div>
+            {room.status === "finished" && <section className="panel result-panel" role="status"><h2>{room.players.filter(p => room.winnerIds?.includes(p.id)).map(p => p.name).join("、") || "无人"}获胜</h2><p>{room.finishReason}。房主可以重新开始或结束游戏。</p></section>}
+            {me.bankrupt && <p className="connection-banner">你已破产，资产已结清，可以继续观战。</p>}
             <div className="page-heading">
               <div>
                 <span className="eyebrow">LET’S GO, TRAVELER</span>
@@ -718,7 +762,7 @@ export default function App() {
                             {p.id === me.id ? "（我）" : ""}
                           </b>
                           <span>
-                            {p.id === room.hostId
+                            {p.bankrupt ? "已破产" : p.id === room.hostId
                               ? "房主"
                               : p.online
                                 ? "已就位"
@@ -811,30 +855,6 @@ export default function App() {
                 {tab === "home" && (
                   <div className="dashboard">
                     <div className="main-column">
-                      <section className="balance-card">
-                        <div className="balance-label">
-                          <span>
-                            <Wallet size={17} /> 我的可用余额
-                          </span>
-                          <span className="bank-chip">
-                            <Landmark size={18} /> JOURNEY BANK
-                          </span>
-                        </div>
-                        <div className="balance-number">
-                          <small>¥</small>
-                          {me.balance.toLocaleString("zh-CN")}
-                        </div>
-                        <div className="balance-footer">
-                          <span>
-                            {me.name}
-                            <i />
-                            中国之旅 3007
-                          </span>
-                          <span>
-                            <ShieldCheck size={15} /> 已同步
-                          </span>
-                        </div>
-                      </section>
                       <section className="quick-actions">
                         <button onClick={() => openTransfer("pay")}>
                           <span className="quick-icon olive">
@@ -980,7 +1000,7 @@ export default function App() {
                                   {p.id === me.id && <em>我</em>}
                                 </b>
                                 <span>
-                                  {p.id === room.hostId
+                                  {p.bankrupt ? "已破产" : p.id === room.hostId
                                     ? "房主"
                                     : p.online
                                       ? "在线"
@@ -1236,7 +1256,7 @@ export default function App() {
                 <Landmark size={22} /> 银行
               </button>
               {room.players
-                .filter((p) => p.id !== me.id)
+                .filter((p) => p.id !== me.id && !p.bankrupt)
                 .map((p) => (
                   <button
                     className={target === p.id ? "chosen" : ""}
@@ -1307,7 +1327,7 @@ export default function App() {
               </div>
               <button
                 className="primary wide"
-                disabled={!active || !Number(amount)}
+                disabled={!canPlay || !Number(amount)}
               >
                 {pending ? "正在记账…" : "确认交易"}
                 <Check size={18} />
@@ -1336,7 +1356,7 @@ export default function App() {
                     },
                     ...(canManage
                       ? [
-                          { id: "give" as const, label: "转让地产" },
+                          { id: "sell" as const, label: "出售地产给银行", disabled: s.mortgaged || s.hotel || s.houses > 0 },
                           {
                             id: s.mortgaged
                               ? ("redeem" as const)
@@ -1359,9 +1379,9 @@ export default function App() {
                                 },
                                 {
                                   id: "demolish" as const,
-                                  label: s.hotel ? "拆除旅馆" : "拆除房屋",
+                                  label: s.hotel ? "出售旅馆 / 房屋" : "出售房屋",
                                   disabled:
-                                    s.mortgaged || (!s.hotel && !s.houses),
+                                    (!s.hotel && !s.houses),
                                 },
                               ]
                             : []),
@@ -1373,19 +1393,17 @@ export default function App() {
                 propertyOp === "buy"
                   ? d.purchasePrice
                   : propertyOp === "build"
-                    ? d.buildingCost?.house
+                    ? (d.buildingCost?.house ?? 0) * buildingCount
                     : propertyOp === "hotel"
                       ? d.buildingCost?.hotel
-                      : propertyOp === "mortgage" || propertyOp === "redeem"
+                      : propertyOp === "redeem" ? redemptionPrice(d)
+                      : propertyOp === "sell" ? Math.floor(d.purchasePrice / 2)
+                      : propertyOp === "mortgage"
                         ? d.mortgagePrice
                         : propertyOp === "rent"
                           ? rent
                           : propertyOp === "demolish"
-                            ? Math.floor(
-                                (s.hotel
-                                  ? d.buildingCost!.hotel
-                                  : d.buildingCost!.house) / 2,
-                              )
+                            ? Math.floor(d.buildingCost!.house / 2) * buildingCount
                             : 0;
               return (
                 <>
@@ -1478,11 +1496,12 @@ export default function App() {
                   <div className="property-operations">
                     {ops.map((op) => (
                       <button
-                        disabled={op.disabled || !active}
+                        disabled={op.disabled || !active || me.bankrupt || room.status !== "playing"}
                         className={propertyOp === op.id ? "chosen" : ""}
                         key={op.id}
                         onClick={() => {
                           setPropertyOp(op.id);
+                          setBuildingCount(1);
                           setPropertyTarget(
                             op.id === "rent" && !canManage ? me.id : "",
                           );
@@ -1501,6 +1520,7 @@ export default function App() {
                           await act({
                             type: propertyOp as Action["type"],
                             propertyId: selected,
+                            ...(["build", "demolish"].includes(propertyOp) ? { count: buildingCount } : {}),
                             ...(propertyTarget
                               ? { playerId: propertyTarget }
                               : {}),
@@ -1512,7 +1532,7 @@ export default function App() {
                           setPropertyOp("");
                           if (
                             propertyOp === "buy" ||
-                            propertyOp === "give" ||
+                            propertyOp === "sell" ||
                             propertyOp === "rent"
                           )
                             setSelected(null);
@@ -1522,12 +1542,12 @@ export default function App() {
                       <b>
                         {ops.find((o) => o.id === propertyOp)?.label}
                         {price
-                          ? ` · ${propertyOp === "mortgage" || propertyOp === "demolish" ? "+" : ""}${money(price)}`
+                          ? ` · ${propertyOp === "mortgage" || propertyOp === "demolish" || propertyOp === "sell" ? "+" : ""}${money(price)}`
                           : ""}
                       </b>
-                      {(propertyOp === "rent" || propertyOp === "give") && (
+                      {propertyOp === "rent" && (
                         <label>
-                          {propertyOp === "rent" ? "选择付款玩家" : "转让给"}
+                          选择付款玩家
                           <select
                             value={propertyTarget}
                             onChange={(e) => setPropertyTarget(e.target.value)}
@@ -1537,19 +1557,26 @@ export default function App() {
                             {room.players
                               .filter(
                                 (p) =>
-                                  p.id !== s.ownerId &&
+                                  !p.bankrupt && p.id !== s.ownerId &&
                                   (propertyOp !== "rent" ||
                                     canManage ||
                                     p.id === me.id),
                               )
                               .map((p) => (
                                 <option key={p.id} value={p.id}>
-                                  {p.name} · {money(p.balance)}
+                                  {p.name} · {money(p.balance)} · 总额 {money(assetsFor(room, p.id).total)}
                                 </option>
                               ))}
                           </select>
                         </label>
                       )}
+                      {["build", "demolish"].includes(propertyOp) && <label>
+                        {propertyOp === "build" ? "建造栋数" : "售卖栋数"}
+                        <select value={buildingCount} onChange={e => setBuildingCount(Number(e.target.value))}>
+                          {Array.from({ length: propertyOp === "build" ? Math.max(0, 4 - s.houses) : s.hotel ? 5 : s.houses }, (_, i) => <option key={i + 1} value={i + 1}>{i + 1} 栋</option>)}
+                        </select>
+                      </label>}
+                      {propertyOp === "rent" && propertyTarget && <p className="soft-note">{assetsFor(room, propertyTarget).total < rent ? `付款玩家总额 ${money(assetsFor(room, propertyTarget).total)} 不足，将自动破产清算，全部地产与建筑归银行。` : "现金不足但总额足够时，请付款玩家先卖房或抵押。"}</p>}
                       {propertyOp === "mortgage" && (
                         <p>
                           抵押保留现有建筑，暂停收租，获得{" "}
@@ -1557,23 +1584,23 @@ export default function App() {
                         </p>
                       )}
                       {propertyOp === "redeem" && (
-                        <p>按抵押本金赎回，恢复收租。</p>
+                        <p>缴回抵押本金及 10% 利息，恢复收租。</p>
                       )}
-                      {propertyOp === "give" && (
+                      {propertyOp === "sell" && (
                         <p>
-                          转让只变更产权，保留建筑和抵押；成交款请另行转账。
+                          无建筑、未抵押的地产按购买价的一半出售给银行。
                         </p>
                       )}
                       {propertyOp === "demolish" && (
                         <p>
-                          {s.hotel ? "旅馆拆除后恢复为 4 栋房屋，" : ""}
-                          返还本次建筑费的 50%。
+                          {s.hotel ? "旅馆折算为 5 栋房屋，卖出所选数量后保留剩余房屋。" : ""}
+                          每栋返还原房屋建筑费的 50%。
                         </p>
                       )}
                       <button
                         className="primary wide"
                         disabled={
-                          !active ||
+                          !canPlay ||
                           (propertyOp === "rent" &&
                             (!rent ||
                               (d.type === "utility" && !room.dice.length)))
@@ -1620,7 +1647,7 @@ export default function App() {
             </div>
             <button
               className="primary wide"
-              disabled={!active}
+              disabled={!canPlay}
               onClick={async () => {
                 if (await act({ type: "roll", values: room.diceCount === 1 ? [manual[0]] : manual })) setModal(null);
               }}
@@ -1670,7 +1697,7 @@ export default function App() {
               朋友打开同一个网站，输入房间号和昵称即可在开局前加入。刷新页面会自动回到这里。
             </p>
             <div className="soft-note">
-              {room.status === "lobby" ? "等待出发" : "游戏进行中"} ·{" "}
+              {room.status === "lobby" ? "等待出发" : room.status === "finished" ? "本局已结算" : "游戏进行中"} ·{" "}
               {room.players.length} / {MAX_PLAYERS} 位玩家 · {room.diceCount} 个骰子 · 初始资金 {money(room.initialMoney)}
             </div>
             <button
@@ -1744,7 +1771,7 @@ export default function App() {
             >
               保存余额纠错
             </button>
-            <p className="tiny">转移地产：打开任意地产证 → 转让地产。</p>
+
             <div className="admin-danger">
               <button
                 className="secondary"
@@ -1759,13 +1786,15 @@ export default function App() {
               >
                 重新开始
               </button>
+              <button className="danger" onClick={() => setConfirmAdmin("end")}>结束游戏</button>
             </div>
             {confirmAdmin && (
               <div className="operation-confirm">
                 <p>
                   {confirmAdmin === "kick"
                     ? `确认移除${room.players.find((p) => p.id === adminPlayer)?.name}？其地产与建筑将收回银行，此操作不可撤销。`
-                    : `确认重开？所有玩家余额恢复为 ${money(room.initialMoney)}，地产与骰子清空，日志保留。此操作不可撤销。`}
+                    : confirmAdmin === "end" ? "确认结束游戏？所有人将返回创建房间页面，本房间不可恢复。"
+                    : `确认重开？所有玩家（含破产玩家）余额恢复为 ${money(room.initialMoney)}，地产与骰子清空，日志保留。此操作不可撤销。`}
                 </p>
                 <button
                   className="danger wide"
@@ -1773,7 +1802,7 @@ export default function App() {
                   onClick={async () => {
                     if (
                       await act({
-                        type: confirmAdmin as "kick" | "restart",
+                        type: confirmAdmin as "kick" | "restart" | "end",
                         ...(confirmAdmin === "kick"
                           ? { playerId: adminPlayer }
                           : {}),
@@ -1784,8 +1813,9 @@ export default function App() {
                     }
                   }}
                 >
-                  确认{confirmAdmin === "kick" ? "移除" : "重新开始"}
+                  确认{confirmAdmin === "kick" ? "移除" : confirmAdmin === "end" ? "结束游戏" : "重新开始"}
                 </button>
+                <button className="secondary wide" onClick={() => setConfirmAdmin("")}>取消</button>
               </div>
             )}
           </Modal>
@@ -1795,13 +1825,12 @@ export default function App() {
             <div className="rules">
               <p>
                 <b>钱与地产</b> ·
-                金额只支持整数，余额不足时操作不会执行。你可以代扣其他玩家向自己的付款，适合彼此信任的围桌游戏；所有操作公开记账。
+                金额只支持整数。付款时现金不足但总额足够，请先变现；总额不足则破产，总额交给债主，地产与建筑收回银行。购买、建房等自愿支出余额不足时不执行。你可以代扣其他玩家向自己的付款，适合彼此信任的围桌游戏；所有操作公开记账。
               </p>
               <p>
                 <b>建筑与抵押</b> ·
                 可直接在自有地产建房，无需集齐色组或均衡建造。最多 4
-                栋，再支付旅馆建筑费升级。抵押保留建筑但停收租；赎回按本金；拆房返还一半建筑费，拆旅馆恢复
-                4 栋房屋。
+                栋，再支付旅馆建筑费升级。抵押保留建筑但停收租；赎回需本金加 10% 利息。房屋半价出售，旅馆折算 5 栋房屋后按所选数量出售；空地半价售给银行，抵押地产不可出售。
               </p>
               <p>
                 <b>自动租金</b> ·
@@ -1820,6 +1849,7 @@ export default function App() {
           </Modal>
         )}
       </div>
+    </BalanceContext.Provider>
     </NoticeContext.Provider>
   );
 }

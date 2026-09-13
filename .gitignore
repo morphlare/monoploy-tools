@@ -5,3 +5,5 @@ artifacts/
 *.log
 .env
 .idea/
+
+.runtime/
