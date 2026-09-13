@@ -97,7 +97,7 @@ docker compose up -d --build
 | `DB_PATH`        | `data/game.sqlite` | SQLite 数据文件      |
 | `ROOM_TTL_HOURS` | `24`               | 全员离线后的保留时长 |
 
-`GET /api/health` 返回健康状态。Docker 配置已提供，本次环境未运行 Docker 构建；Node.js 生产包已实际启动并测试。
+`GET /api/health` 返回健康状态。Docker 构建阶段安装 Python、make 和 C++ 编译器，便于 SQLite 原生依赖在预编译包不可用时从源码构建；运行镜像不包含这些编译工具。
 
 ## 验证
 
