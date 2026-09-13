@@ -1,0 +1,817 @@
+[
+  {
+    "id": "71-31",
+    "type": "property",
+    "name": "台湾省",
+    "colorGroup": 1,
+    "purchasePrice": 2200,
+    "purchasePriceInferred": true,
+    "mortgagePrice": 1100,
+    "rent": {
+      "land": 180,
+      "house1": 900,
+      "house2": 2500,
+      "house3": 7000,
+      "house4": 8750,
+      "hotel": 10500
+    },
+    "buildingCost": {
+      "house": 1500,
+      "hotel": 1500
+    }
+  },
+  {
+    "id": "71-32",
+    "type": "property",
+    "name": "福建省",
+    "colorGroup": 1,
+    "purchasePrice": 2400,
+    "purchasePriceInferred": true,
+    "mortgagePrice": 1200,
+    "rent": {
+      "land": 200,
+      "house1": 1000,
+      "house2": 3000,
+      "house3": 7500,
+      "house4": 9250,
+      "hotel": 11000
+    },
+    "buildingCost": {
+      "house": 1500,
+      "hotel": 1500
+    }
+  },
+  {
+    "id": "71-33",
+    "type": "property",
+    "name": "青海省",
+    "colorGroup": 1,
+    "purchasePrice": 2200,
+    "purchasePriceInferred": true,
+    "mortgagePrice": 1100,
+    "rent": {
+      "land": 180,
+      "house1": 900,
+      "house2": 2500,
+      "house3": 7000,
+      "house4": 8750,
+      "hotel": 10500
+    },
+    "buildingCost": {
+      "house": 1500,
+      "hotel": 1500
+    }
+  },
+  {
+    "id": "71-34",
+    "type": "property",
+    "name": "高昌故城",
+    "colorGroup": 1,
+    "purchasePrice": 3200,
+    "purchasePriceInferred": true,
+    "mortgagePrice": 1600,
+    "rent": {
+      "land": 280,
+      "house1": 1500,
+      "house2": 4500,
+      "house3": 10000,
+      "house4": 12000,
+      "hotel": 14000
+    },
+    "buildingCost": {
+      "house": 2000,
+      "hotel": 2000
+    }
+  },
+  {
+    "id": "71-35",
+    "type": "property",
+    "name": "新疆维吾尔自治区",
+    "colorGroup": 1,
+    "purchasePrice": 4000,
+    "purchasePriceInferred": true,
+    "mortgagePrice": 2000,
+    "rent": {
+      "land": 500,
+      "house1": 2000,
+      "house2": 6000,
+      "house3": 14000,
+      "house4": 17000,
+      "hotel": 20000
+    },
+    "buildingCost": {
+      "house": 2000,
+      "hotel": 2000
+    }
+  },
+  {
+    "id": "71-36",
+    "type": "property",
+    "name": "广东省",
+    "colorGroup": 2,
+    "purchasePrice": 2600,
+    "purchasePriceInferred": true,
+    "mortgagePrice": 1300,
+    "rent": {
+      "land": 220,
+      "house1": 1100,
+      "house2": 3300,
+      "house3": 8000,
+      "house4": 9750,
+      "hotel": 11500
+    },
+    "buildingCost": {
+      "house": 1500,
+      "hotel": 1500
+    }
+  },
+  {
+    "id": "71-37",
+    "type": "property",
+    "name": "广西壮族自治区",
+    "colorGroup": 2,
+    "purchasePrice": 2600,
+    "purchasePriceInferred": true,
+    "mortgagePrice": 1300,
+    "rent": {
+      "land": 220,
+      "house1": 1100,
+      "house2": 3300,
+      "house3": 8000,
+      "house4": 9750,
+      "hotel": 11500
+    },
+    "buildingCost": {
+      "house": 1500,
+      "hotel": 1500
+    }
+  },
+  {
+    "id": "71-38",
+    "type": "property",
+    "name": "贵州省",
+    "colorGroup": 2,
+    "purchasePrice": 2800,
+    "purchasePriceInferred": true,
+    "mortgagePrice": 1400,
+    "rent": {
+      "land": 240,
+      "house1": 1200,
+      "house2": 3600,
+      "house3": 8500,
+      "house4": 10500,
+      "hotel": 12000
+    },
+    "buildingCost": {
+      "house": 1500,
+      "hotel": 1500
+    }
+  },
+  {
+    "id": "71-39",
+    "type": "property",
+    "name": "云南省",
+    "colorGroup": 2,
+    "purchasePrice": 1600,
+    "purchasePriceInferred": true,
+    "mortgagePrice": 800,
+    "rent": {
+      "land": 120,
+      "house1": 600,
+      "house2": 1800,
+      "house3": 5000,
+      "house4": 7000,
+      "hotel": 9000
+    },
+    "buildingCost": {
+      "house": 1000,
+      "hotel": 1000
+    }
+  },
+  {
+    "id": "71-40",
+    "type": "property",
+    "name": "江苏省",
+    "colorGroup": 2,
+    "purchasePrice": 1400,
+    "purchasePriceInferred": true,
+    "mortgagePrice": 700,
+    "rent": {
+      "land": 100,
+      "house1": 500,
+      "house2": 1500,
+      "house3": 4500,
+      "house4": 6250,
+      "hotel": 7500
+    },
+    "buildingCost": {
+      "house": 1000,
+      "hotel": 1000
+    }
+  },
+  {
+    "id": "71-41",
+    "type": "property",
+    "name": "浙江省",
+    "colorGroup": 3,
+    "purchasePrice": 2000,
+    "purchasePriceInferred": true,
+    "mortgagePrice": 1000,
+    "rent": {
+      "land": 160,
+      "house1": 800,
+      "house2": 2200,
+      "house3": 6000,
+      "house4": 8000,
+      "hotel": 10000
+    },
+    "buildingCost": {
+      "house": 1000,
+      "hotel": 1000
+    }
+  },
+  {
+    "id": "71-42",
+    "type": "property",
+    "name": "安徽省",
+    "colorGroup": 3,
+    "purchasePrice": 1800,
+    "purchasePriceInferred": true,
+    "mortgagePrice": 900,
+    "rent": {
+      "land": 140,
+      "house1": 700,
+      "house2": 2000,
+      "house3": 5500,
+      "house4": 7500,
+      "hotel": 9500
+    },
+    "buildingCost": {
+      "house": 1000,
+      "hotel": 1000
+    }
+  },
+  {
+    "id": "71-43",
+    "type": "property",
+    "name": "江西省",
+    "colorGroup": 3,
+    "purchasePrice": 1800,
+    "purchasePriceInferred": true,
+    "mortgagePrice": 900,
+    "rent": {
+      "land": 140,
+      "house1": 700,
+      "house2": 2000,
+      "house3": 5500,
+      "house4": 7500,
+      "hotel": 9500
+    },
+    "buildingCost": {
+      "house": 1000,
+      "hotel": 1000
+    }
+  },
+  {
+    "id": "71-44",
+    "type": "property",
+    "name": "湖南省",
+    "colorGroup": 3,
+    "purchasePrice": 600,
+    "purchasePriceInferred": true,
+    "mortgagePrice": 300,
+    "rent": {
+      "land": 20,
+      "house1": 100,
+      "house2": 300,
+      "house3": 900,
+      "house4": 1600,
+      "hotel": 2500
+    },
+    "buildingCost": {
+      "house": 500,
+      "hotel": 500
+    }
+  },
+  {
+    "id": "71-45",
+    "type": "property",
+    "name": "湖北省",
+    "colorGroup": 3,
+    "purchasePrice": 1000,
+    "purchasePriceInferred": true,
+    "mortgagePrice": 500,
+    "rent": {
+      "land": 60,
+      "house1": 300,
+      "house2": 900,
+      "house3": 2700,
+      "house4": 4000,
+      "hotel": 5500
+    },
+    "buildingCost": {
+      "house": 500,
+      "hotel": 500
+    }
+  },
+  {
+    "id": "71-46",
+    "type": "property",
+    "name": "四川省",
+    "colorGroup": 4,
+    "purchasePrice": 1200,
+    "purchasePriceInferred": true,
+    "mortgagePrice": 600,
+    "rent": {
+      "land": 80,
+      "house1": 400,
+      "house2": 1000,
+      "house3": 3000,
+      "house4": 4500,
+      "hotel": 6000
+    },
+    "buildingCost": {
+      "house": 500,
+      "hotel": 500
+    }
+  },
+  {
+    "id": "71-47",
+    "type": "property",
+    "name": "山东省",
+    "colorGroup": 4,
+    "purchasePrice": 3000,
+    "purchasePriceInferred": true,
+    "mortgagePrice": 1500,
+    "rent": {
+      "land": 260,
+      "house1": 1300,
+      "house2": 3900,
+      "house3": 9000,
+      "house4": 11000,
+      "hotel": 12750
+    },
+    "buildingCost": {
+      "house": 2000,
+      "hotel": 2000
+    }
+  },
+  {
+    "id": "71-48",
+    "type": "property",
+    "name": "河北省",
+    "colorGroup": 4,
+    "purchasePrice": 2200,
+    "purchasePriceInferred": true,
+    "mortgagePrice": 1100,
+    "rent": {
+      "land": 180,
+      "house1": 900,
+      "house2": 2500,
+      "house3": 7000,
+      "house4": 8750,
+      "hotel": 10500
+    },
+    "buildingCost": {
+      "house": 1500,
+      "hotel": 1500
+    }
+  },
+  {
+    "id": "71-49",
+    "type": "property",
+    "name": "河南省",
+    "colorGroup": 4,
+    "purchasePrice": 3000,
+    "purchasePriceInferred": true,
+    "mortgagePrice": 1500,
+    "rent": {
+      "land": 260,
+      "house1": 1300,
+      "house2": 3900,
+      "house3": 9000,
+      "house4": 11000,
+      "hotel": 12750
+    },
+    "buildingCost": {
+      "house": 2000,
+      "hotel": 2000
+    }
+  },
+  {
+    "id": "71-50",
+    "type": "property",
+    "name": "山西省",
+    "colorGroup": 5,
+    "purchasePrice": 2400,
+    "purchasePriceInferred": true,
+    "mortgagePrice": 1200,
+    "rent": {
+      "land": 200,
+      "house1": 1100,
+      "house2": 3000,
+      "house3": 7500,
+      "house4": 9250,
+      "hotel": 11000
+    },
+    "buildingCost": {
+      "house": 1500,
+      "hotel": 1500
+    }
+  },
+  {
+    "id": "71-51",
+    "type": "property",
+    "name": "陕西省",
+    "colorGroup": 5,
+    "purchasePrice": 2600,
+    "purchasePriceInferred": true,
+    "mortgagePrice": 1300,
+    "rent": {
+      "land": 220,
+      "house1": 1100,
+      "house2": 3300,
+      "house3": 8000,
+      "house4": 9750,
+      "hotel": 11500
+    },
+    "buildingCost": {
+      "house": 1500,
+      "hotel": 1500
+    }
+  },
+  {
+    "id": "71-52",
+    "type": "property",
+    "name": "甘肃省",
+    "colorGroup": 5,
+    "purchasePrice": 2600,
+    "purchasePriceInferred": true,
+    "mortgagePrice": 1300,
+    "rent": {
+      "land": 220,
+      "house1": 1100,
+      "house2": 3300,
+      "house3": 8000,
+      "house4": 9750,
+      "hotel": 11500
+    },
+    "buildingCost": {
+      "house": 1500,
+      "hotel": 1500
+    }
+  },
+  {
+    "id": "71-53",
+    "type": "property",
+    "name": "辽宁省",
+    "colorGroup": 5,
+    "purchasePrice": 2200,
+    "purchasePriceInferred": true,
+    "mortgagePrice": 1100,
+    "rent": {
+      "land": 180,
+      "house1": 900,
+      "house2": 2500,
+      "house3": 7000,
+      "house4": 8750,
+      "hotel": 10500
+    },
+    "buildingCost": {
+      "house": 1500,
+      "hotel": 1500
+    }
+  },
+  {
+    "id": "71-54",
+    "type": "property",
+    "name": "内蒙古自治区",
+    "colorGroup": 6,
+    "purchasePrice": 1600,
+    "purchasePriceInferred": true,
+    "mortgagePrice": 800,
+    "rent": {
+      "land": 120,
+      "house1": 600,
+      "house2": 1800,
+      "house3": 5000,
+      "house4": 7000,
+      "hotel": 9000
+    },
+    "buildingCost": {
+      "house": 1000,
+      "hotel": 1000
+    }
+  },
+  {
+    "id": "71-55",
+    "type": "property",
+    "name": "宁夏回族自治区",
+    "colorGroup": 6,
+    "purchasePrice": 1400,
+    "purchasePriceInferred": true,
+    "mortgagePrice": 700,
+    "rent": {
+      "land": 100,
+      "house1": 500,
+      "house2": 1500,
+      "house3": 4500,
+      "house4": 6250,
+      "hotel": 7500
+    },
+    "buildingCost": {
+      "house": 1000,
+      "hotel": 1000
+    }
+  },
+  {
+    "id": "71-56",
+    "type": "property",
+    "name": "吉林省",
+    "colorGroup": 6,
+    "purchasePrice": 1400,
+    "purchasePriceInferred": true,
+    "mortgagePrice": 700,
+    "rent": {
+      "land": 100,
+      "house1": 500,
+      "house2": 1500,
+      "house3": 4500,
+      "house4": 6250,
+      "hotel": 7500
+    },
+    "buildingCost": {
+      "house": 1000,
+      "hotel": 1000
+    }
+  },
+  {
+    "id": "71-57",
+    "type": "property",
+    "name": "西藏自治区",
+    "colorGroup": 7,
+    "purchasePrice": 2000,
+    "purchasePriceInferred": true,
+    "mortgagePrice": 1000,
+    "rent": {
+      "land": 140,
+      "house1": 700,
+      "house2": 2000,
+      "house3": 5500,
+      "house4": 7500,
+      "hotel": 9500
+    },
+    "buildingCost": {
+      "house": 1000,
+      "hotel": 1000
+    }
+  },
+  {
+    "id": "71-58",
+    "type": "property",
+    "name": "海南省",
+    "colorGroup": 7,
+    "purchasePrice": 1800,
+    "purchasePriceInferred": true,
+    "mortgagePrice": 900,
+    "rent": {
+      "land": 160,
+      "house1": 800,
+      "house2": 2200,
+      "house3": 6000,
+      "house4": 8000,
+      "hotel": 10000
+    },
+    "buildingCost": {
+      "house": 1000,
+      "hotel": 1000
+    }
+  },
+  {
+    "id": "71-59",
+    "type": "property",
+    "name": "武夷山",
+    "colorGroup": 7,
+    "purchasePrice": 1200,
+    "purchasePriceInferred": true,
+    "mortgagePrice": 600,
+    "rent": {
+      "land": 80,
+      "house1": 400,
+      "house2": 1000,
+      "house3": 3000,
+      "house4": 4500,
+      "hotel": 6000
+    },
+    "buildingCost": {
+      "house": 500,
+      "hotel": 500
+    }
+  },
+  {
+    "id": "71-60",
+    "type": "property",
+    "name": "黑龙江省",
+    "colorGroup": 7,
+    "purchasePrice": 1000,
+    "purchasePriceInferred": true,
+    "mortgagePrice": 500,
+    "rent": {
+      "land": 60,
+      "house1": 300,
+      "house2": 900,
+      "house3": 2700,
+      "house4": 4000,
+      "hotel": 5500
+    },
+    "buildingCost": {
+      "house": 500,
+      "hotel": 500
+    }
+  },
+  {
+    "id": "71-61",
+    "type": "property",
+    "name": "北京故宫博物院",
+    "colorGroup": 7,
+    "purchasePrice": 2600,
+    "purchasePriceInferred": true,
+    "mortgagePrice": 1300,
+    "rent": {
+      "land": 220,
+      "house1": 1100,
+      "house2": 3300,
+      "house3": 8000,
+      "house4": 9750,
+      "hotel": 11500
+    },
+    "buildingCost": {
+      "house": 1500,
+      "hotel": 1500
+    }
+  },
+  {
+    "id": "71-62",
+    "type": "property",
+    "name": "万里长城",
+    "colorGroup": 7,
+    "purchasePrice": 3500,
+    "purchasePriceInferred": true,
+    "mortgagePrice": 1750,
+    "rent": {
+      "land": 350,
+      "house1": 1750,
+      "house2": 5000,
+      "house3": 11000,
+      "house4": 13000,
+      "hotel": 15000
+    },
+    "buildingCost": {
+      "house": 2000,
+      "hotel": 2000
+    }
+  },
+  {
+    "id": "71-63",
+    "type": "property",
+    "name": "澳门大三巴牌坊",
+    "colorGroup": 8,
+    "purchasePrice": 3000,
+    "purchasePriceInferred": true,
+    "mortgagePrice": 1500,
+    "rent": {
+      "land": 260,
+      "house1": 1300,
+      "house2": 3900,
+      "house3": 9000,
+      "house4": 11000,
+      "hotel": 12750
+    },
+    "buildingCost": {
+      "house": 2000,
+      "hotel": 2000
+    }
+  },
+  {
+    "id": "71-64",
+    "type": "property",
+    "name": "敦煌莫高窟",
+    "colorGroup": 8,
+    "purchasePrice": 3200,
+    "purchasePriceInferred": true,
+    "mortgagePrice": 1600,
+    "rent": {
+      "land": 280,
+      "house1": 1500,
+      "house2": 4500,
+      "house3": 10000,
+      "house4": 12000,
+      "hotel": 14000
+    },
+    "buildingCost": {
+      "house": 2000,
+      "hotel": 2000
+    }
+  },
+  {
+    "id": "71-65",
+    "type": "property",
+    "name": "丽江古城",
+    "colorGroup": 8,
+    "purchasePrice": 1000,
+    "purchasePriceInferred": true,
+    "mortgagePrice": 500,
+    "rent": {
+      "land": 60,
+      "house1": 300,
+      "house2": 900,
+      "house3": 2700,
+      "house4": 4000,
+      "hotel": 5500
+    },
+    "buildingCost": {
+      "house": 500,
+      "hotel": 500
+    }
+  },
+  {
+    "id": "71-66",
+    "type": "station",
+    "name": "广州站",
+    "purchasePrice": 2000,
+    "purchasePriceInferred": true,
+    "mortgagePrice": 1000,
+    "rentByOwnedStationCount": {
+      "1": 250,
+      "2": 500,
+      "3": 1000,
+      "4": 2000
+    }
+  },
+  {
+    "id": "71-67",
+    "type": "station",
+    "name": "上海站",
+    "purchasePrice": 2000,
+    "purchasePriceInferred": true,
+    "mortgagePrice": 1000,
+    "rentByOwnedStationCount": {
+      "1": 250,
+      "2": 500,
+      "3": 1000,
+      "4": 2000
+    }
+  },
+  {
+    "id": "71-68",
+    "type": "station",
+    "name": "南京站",
+    "purchasePrice": 2000,
+    "purchasePriceInferred": true,
+    "mortgagePrice": 1000,
+    "rentByOwnedStationCount": {
+      "1": 250,
+      "2": 500,
+      "3": 1000,
+      "4": 2000
+    }
+  },
+  {
+    "id": "71-69",
+    "type": "station",
+    "name": "北京站",
+    "purchasePrice": 2000,
+    "purchasePriceInferred": true,
+    "mortgagePrice": 1000,
+    "rentByOwnedStationCount": {
+      "1": 250,
+      "2": 500,
+      "3": 1000,
+      "4": 2000
+    }
+  },
+  {
+    "id": "71-70",
+    "type": "utility",
+    "name": "中国大运河",
+    "purchasePrice": 1500,
+    "purchasePriceInferred": true,
+    "mortgagePrice": 750,
+    "rent": {
+      "singleUtilityDiceMultiplier": 10,
+      "bothUtilitiesDiceMultiplier": 100
+    }
+  },
+  {
+    "id": "71-71",
+    "type": "utility",
+    "name": "大唐托克托发电厂",
+    "purchasePrice": 1500,
+    "purchasePriceInferred": true,
+    "mortgagePrice": 750,
+    "rent": {
+      "singleUtilityDiceMultiplier": 10,
+      "bothUtilitiesDiceMultiplier": 100
+    }
+  }
+]

@@ -1,0 +1,10 @@
+services:
+  journey-bank:
+    build: .
+    ports:
+      - "3000:3000"
+    volumes:
+      - journey-data:/app/data
+    restart: unless-stopped
+volumes:
+  journey-data:
